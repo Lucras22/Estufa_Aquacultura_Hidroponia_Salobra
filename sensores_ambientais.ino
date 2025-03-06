@@ -24,71 +24,103 @@
 #include "DHT.h"
 #include <OneWire.h>
 #include <DallasTemperature.h>
+#include <WiFi.h>
+#include <HTTPClient.h>
+
+// ##############  CONFIGURAÇÃO DO WIFI
+const char* ssid = "Lucas Galindo | POCO C65";       // Substitua pelo seu Wi-Fi
+const char* password = "lucras22";  // Substitua pela senha
+
+// ##############  CONFIGURAÇÃO DO TELEGRAM
+const String botToken = "7751526303:AAEjh5i6E2B0uGwTbU3TGWbjhbvcdTEvFdg";  // Substitua pelo token do seu bot
+const String chatId = "7003158288";     // Substitua pelo seu chat ID
+
+WiFiClientSecure client;
+
+// Função para enviar mensagem para o Telegram via POST
+void sendMessage(String message) {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    String url = "https://api.telegram.org/bot" + botToken + "/sendMessage";
+    
+    http.begin(url);
+    http.addHeader("Content-Type", "application/x-www-form-urlencoded");
+    
+    // Montando os parâmetros da requisição POST
+    String postData = "chat_id=" + chatId + "&text=" + message;
+    
+    // Enviando a requisição
+    int httpResponseCode = http.POST(postData);
+    
+    if (httpResponseCode > 0) {
+      String response = http.getString();
+      Serial.println("Código de resposta: " + String(httpResponseCode));
+      Serial.println("Resposta: " + response);
+    } else {
+      Serial.print("Erro na requisição: ");
+      Serial.println(httpResponseCode);
+    }
+    
+    http.end();
+  } else {
+    Serial.println("WiFi desconectado");
+  }
+}
 
 // ##############  PINOS
-#define DHT1PIN 12  //Interno
-#define DHT2PIN 13 //Externo
-#define tdsPin 33 //Sensor TDS
+#define DHT1PIN 14  //Interno
+#define DHT2PIN 13  //Externo
+#define tdsPin 33   //Sensor TDS
 #define ONE_WIRE_BUS 4 //Sensor Temp Agua
-#define PH_SENSOR_PIN 34  // Sensor pH
+#define PH_SENSOR_PIN 34 // Sensor pH
 
 // ##############  DHT GLOBAL
-// Definindo o tipo de sensor DHT
 #define DHTTYPE DHT22
-// Iniciando os sensores DHT
 DHT dht1(DHT1PIN, DHTTYPE);
 DHT dht2(DHT2PIN, DHTTYPE);
 
 // ##############  TEMP AGUA GLOBAL
-// Criando uma instância da classe OneWire
 OneWire oneWire(ONE_WIRE_BUS);
-// Passando a instância OneWire para a classe DallasTemperature
 DallasTemperature sensors(&oneWire);
 
-// ##############  SENSOR PH AGUA
-
-// Definições de calibração para as duas faixas
-float calibracao_ph7 = 1.65;  // Tensão obtida na solução de calibração pH 7 (ajuste conforme a leitura real)
-float calibracao_ph4 = 1.35;  // Tensão obtida na solução de calibração pH 4 (ajuste conforme a leitura real)
-float calibracao_ph10 = 2.05; // Tensão obtida na solução de calibração pH 10 (ajuste conforme a leitura real)
-
-float m_4_7, b_4_7;  // Variáveis para a equação da calibração pH 4 a 7
-float m_7_10, b_7_10; // Variáveis para a equação da calibração pH 7 a 10
-
-// ##############  
+// ##############  SENSOR PH
+float calibracao_ph7 = 1.65;
+float calibracao_ph4 = 1.35;
+float calibracao_ph10 = 2.05;
+float m_4_7, b_4_7, m_7_10, b_7_10;
 
 void setup() {
   Serial.begin(115200);
-
   pinMode(tdsPin, INPUT);
   
   dht1.begin();
   dht2.begin();
   sensors.begin();
 
-  // Calibração para pH 7 e 4 (faixa ácida)
   m_4_7 = (4.0 - 7.0) / (calibracao_ph4 - calibracao_ph7);
   b_4_7 = 7.0 - m_4_7 * calibracao_ph7;
-
-  // Calibração para pH 7 e 10 (faixa básica)
   m_7_10 = (7.0 - 10.0) / (calibracao_ph7 - calibracao_ph10);
   b_7_10 = 10.0 - m_7_10 * calibracao_ph10;
 
+  // Conectar ao Wi-Fi
+  WiFi.begin(ssid, password);
+  Serial.print("Conectando ao Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi conectado!");
 }
 
 void loop() {
-
-// ##############  SENSOR PH
-
+  // Leitura do sensor de pH
   int buf[10];
-
-  // Coleta de 10 amostras do sensor
   for (int i = 0; i < 10; i++) {  
     buf[i] = analogRead(PH_SENSOR_PIN);
     delay(10);
   }
 
-  // Ordena os valores coletados em ordem crescente
+  // Ordenação e média das amostras centrais
   for (int i = 0; i < 9; i++) {
     for (int j = i + 1; j < 10; j++) {
       if (buf[i] > buf[j]) {
@@ -100,61 +132,33 @@ void loop() {
   }
 
   int valorMedio = 0;
-  for (int i = 2; i < 8; i++) {  // Média das 6 amostras centrais
+  for (int i = 2; i < 8; i++) {
     valorMedio += buf[i];
   }
 
-  // Conversão do ADC para tensão (ESP32 usa ADC de 12 bits, valor máximo = 4095)
   float tensao = (valorMedio * 3.3) / 4095.0 / 6;
+  float ph = (tensao < calibracao_ph7) ? (m_4_7 * tensao + b_4_7) : (m_7_10 * tensao + b_7_10);
 
-  // Calculo do pH com base nas duas faixas
-  float ph;
-
-  // Determina a faixa de pH com base na tensão lida
-  if (tensao < calibracao_ph7) {
-    // Faixa ácida (pH 4 a 7)
-    ph = m_4_7 * tensao + b_4_7;
-  } else if (tensao > calibracao_ph7) {
-    // Faixa básica (pH 7 a 10)
-    ph = m_7_10 * tensao + b_7_10;
-  } else {
-    // Faixa neutra (próxima ao pH 7)
-    ph = 7.0;  // pH 7 como valor neutro
-  }
-
-// ##############  DHT22
-  // Lendo a umidade relativa do ar do DHT1 e DHT2
+  // Leitura dos sensores DHT
   float humidity1 = dht1.readHumidity();
-  float humidity2 = dht2.readHumidity();
-
-  // Lendo a temperatura em Celsius do DHT1 e DHT2
   float temperature1 = dht1.readTemperature();
+  float humidity2 = dht2.readHumidity();
   float temperature2 = dht2.readTemperature();
-  
-  // Verifique se houve falha na leitura dos sensores
-  if (isnan(humidity1) || isnan(temperature1)) {
-    Serial.println("Falha ao ler do sensor DHT1!");
+
+  if (isnan(humidity1) || isnan(temperature1) || isnan(humidity2) || isnan(temperature2)) {
+    Serial.println("Falha ao ler DHT!");
     return;
   }
 
-  if (isnan(humidity2) || isnan(temperature2)) {
-    Serial.println("Falha ao ler do sensor DHT2!");
-    return;
-  }
-
-// ##############  TDS
+  // Leitura do TDS
   int tdsValue = analogRead(tdsPin);
+  float conductivity = tdsValue * 2;
 
-  // Converte o valor do sensor em milivolts (mV)
-  float condutivy = tdsValue * 2;
+  // Leitura da temperatura da água
+  sensors.requestTemperatures();
+  float temperatureWater = sensors.getTempCByIndex(0);
 
-// ##############  TEMPERATURA DA AGUA
- sensors.requestTemperatures(); // Solicita a leitura de temperatura
-  float temperatureWalter = sensors.getTempCByIndex(0); // Obtém a temperatura do primeiro sensor
-
-// ##############
-
-  //EXIBIR MONITOR SERIAL
+ //EXIBIR MONITOR SERIAL
 
   Serial.print("Umidade Interna: ");
   Serial.print(humidity1);
@@ -171,19 +175,30 @@ void loop() {
   Serial.println(" °C");
 
   Serial.print("Temperatura Agua: ");
-  Serial.print(temperatureWalter);
+  Serial.print(temperatureWater);
   Serial.println(" C");
 
   Serial.print("TDS Valor (PPM): ");
   Serial.println(tdsValue);
   Serial.print("Condutividade Eletrica (ECC): ");
-  Serial.println(condutivy);
+  Serial.println(conductivity);
 
   Serial.print("Tensão medida: ");
   Serial.print(tensao, 3);
   Serial.print(" V | pH: ");
   Serial.println(ph, 2);
 
-  // Repetindo as leituras a cada 5 segundos
+  // Enviar dados para o Telegram
+  String mensagem = " Dados dos Sensores:\n\n";
+  mensagem += " Interno: " + String(temperature1) + "°C | " + String(humidity1) + "%\n";
+  mensagem += " Externo: " + String(temperature2) + "°C | " + String(humidity2) + "%\n";
+  mensagem += " Temp. Água: " + String(temperatureWater) + "°C\n";
+  mensagem += " TDS: " + String(tdsValue) + " ppm\n";
+  mensagem += " Condutividade: " + String(conductivity) + "ECC\n";
+  mensagem += " pH: " + String(ph, 2) + "\n";
+
+  sendMessage(mensagem);  // Envia para o Telegram
+
+  // Esperar 5 segundos antes da próxima leitura
   delay(5000);
 }
