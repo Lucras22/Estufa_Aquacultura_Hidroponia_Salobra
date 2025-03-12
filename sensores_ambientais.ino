@@ -84,9 +84,9 @@ OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature sensors(&oneWire);
 
 // ##############  SENSOR PH
-float calibracao_ph7 = 1.65;
-float calibracao_ph4 = 1.35;
-float calibracao_ph10 = 2.05;
+float calibracao_ph7 = 2.12;
+float calibracao_ph4 = 3.30;
+float calibracao_ph10 = 2.55;
 float m_4_7, b_4_7, m_7_10, b_7_10;
 
 void setup() {
