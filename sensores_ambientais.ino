@@ -70,9 +70,15 @@ void sendMessage(String message) {
 // ##############  PINOS
 #define DHT1PIN 14  //Interno
 #define DHT2PIN 13  //Externo
-#define tdsPin 33   //Sensor TDS
-#define ONE_WIRE_BUS 4 //Sensor Temp Agua
-#define PH_SENSOR_PIN 34 // Sensor pH
+
+#define tdsPin1 33   //Sensor TDS1
+#define tdsPin2 32   //Sensor TDS2
+
+#define ONE_WIRE_BUS_1 4  // Sensor do Tanque 1
+#define ONE_WIRE_BUS_2 5  // Sensor do Tanque 2
+
+#define PH_SENSOR_PIN1 34 // Sensor pH1
+#define PH_SENSOR_PIN2 35 // Sensor pH2
 
 // ##############  DHT GLOBAL
 #define DHTTYPE DHT22
@@ -80,8 +86,11 @@ DHT dht1(DHT1PIN, DHTTYPE);
 DHT dht2(DHT2PIN, DHTTYPE);
 
 // ##############  TEMP AGUA GLOBAL
-OneWire oneWire(ONE_WIRE_BUS);
-DallasTemperature sensors(&oneWire);
+OneWire oneWire1(ONE_WIRE_BUS_1);
+DallasTemperature sensor1(&oneWire1);
+
+OneWire oneWire2(ONE_WIRE_BUS_2);
+DallasTemperature sensor2(&oneWire2);
 
 // ##############  SENSOR PH
 float calibracao_ph7 = 2.12;
@@ -89,34 +98,10 @@ float calibracao_ph4 = 3.30;
 float calibracao_ph10 = 2.55;
 float m_4_7, b_4_7, m_7_10, b_7_10;
 
-void setup() {
-  Serial.begin(115200);
-  pinMode(tdsPin, INPUT);
-  
-  dht1.begin();
-  dht2.begin();
-  sensors.begin();
-
-  m_4_7 = (4.0 - 7.0) / (calibracao_ph4 - calibracao_ph7);
-  b_4_7 = 7.0 - m_4_7 * calibracao_ph7;
-  m_7_10 = (7.0 - 10.0) / (calibracao_ph7 - calibracao_ph10);
-  b_7_10 = 10.0 - m_7_10 * calibracao_ph10;
-
-  // Conectar ao Wi-Fi
-  WiFi.begin(ssid, password);
-  Serial.print("Conectando ao Wi-Fi");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(1000);
-    Serial.print(".");
-  }
-  Serial.println("\nWiFi conectado!");
-}
-
-void loop() {
-  // Leitura do sensor de pH
+float calcularPH(int pin) {
   int buf[10];
   for (int i = 0; i < 10; i++) {  
-    buf[i] = analogRead(PH_SENSOR_PIN);
+    buf[i] = analogRead(pin);
     delay(10);
   }
 
@@ -136,8 +121,43 @@ void loop() {
     valorMedio += buf[i];
   }
 
-  float tensao = (valorMedio * 3.3) / 4095.0 / 6;
+  float tensao = (valorMedio * 3.3) / (4095.0 * 6);
   float ph = (tensao < calibracao_ph7) ? (m_4_7 * tensao + b_4_7) : (m_7_10 * tensao + b_7_10);
+
+  return ph;
+}
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(tdsPin1, INPUT);
+  pinMode(tdsPin2, INPUT);
+  
+  dht1.begin();
+  dht2.begin();
+  // Inicializando os sensores
+  sensor1.begin();
+  sensor2.begin();
+
+  m_4_7 = (4.0 - 7.0) / (calibracao_ph4 - calibracao_ph7);
+  b_4_7 = 7.0 - m_4_7 * calibracao_ph7;
+  m_7_10 = (7.0 - 10.0) / (calibracao_ph7 - calibracao_ph10);
+  b_7_10 = 10.0 - m_7_10 * calibracao_ph10;
+
+  // Conectar ao Wi-Fi
+  WiFi.begin(ssid, password);
+  Serial.print("Conectando ao Wi-Fi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(1000);
+    Serial.print(".");
+  }
+  Serial.println("\nWiFi conectado!");
+}
+
+void loop() {
+
+  // Caculando o pH
+  float ph1 = calcularPH(PH_SENSOR_PIN1);
+  float ph2 = calcularPH(PH_SENSOR_PIN2);
 
   // Leitura dos sensores DHT
   float humidity1 = dht1.readHumidity();
@@ -150,13 +170,20 @@ void loop() {
     return;
   }
 
-  // Leitura do TDS
-  int tdsValue = analogRead(tdsPin);
-  float conductivity = tdsValue * 2;
+  // Leitura do TDS 1 e 2
+  int tdsValue1 = analogRead(tdsPin1);
+  int tdsValue2 = analogRead(tdsPin2);
+  float conductivity1 = tdsValue1 * 2;
+  float conductivity2 = tdsValue2 * 2;
 
   // Leitura da temperatura da água
-  sensors.requestTemperatures();
-  float temperatureWater = sensors.getTempCByIndex(0);
+    // Solicita leituras dos sensores
+  sensor1.requestTemperatures();
+  sensor2.requestTemperatures();
+
+  // Obtendo os valores de temperatura
+  float temperatureWater1 = sensor1.getTempCByIndex(0);
+  float temperatureWater2 = sensor2.getTempCByIndex(0);
 
  //EXIBIR MONITOR SERIAL
 
@@ -174,28 +201,49 @@ void loop() {
   Serial.print(temperature2);
   Serial.println(" °C");
 
+    Serial.print("-------Tanque 1-------");
+
   Serial.print("Temperatura Agua: ");
-  Serial.print(temperatureWater);
+  Serial.print(temperatureWater1);
   Serial.println(" C");
 
   Serial.print("TDS Valor (PPM): ");
-  Serial.println(tdsValue);
+  Serial.println(tdsValue1);
   Serial.print("Condutividade Eletrica (ECC): ");
-  Serial.println(conductivity);
+  Serial.println(conductivity1);
 
-  Serial.print("Tensão medida: ");
-  Serial.print(tensao, 3);
   Serial.print(" V | pH: ");
-  Serial.println(ph, 2);
+  Serial.println(ph1, 2);
+
+    Serial.print("-------Tanque 2-------");
+
+  Serial.print("Temperatura Agua: ");
+  Serial.print(temperatureWater2);
+  Serial.println(" C");
+
+  Serial.print("TDS Valor (PPM): ");
+  Serial.println(tdsValue2);
+  Serial.print("Condutividade Eletrica (ECC): ");
+  Serial.println(conductivity2);
+
+  Serial.print(" V | pH: ");
+  Serial.println(ph2, 2);
 
   // Enviar dados para o Telegram
   String mensagem = " Dados dos Sensores:\n\n";
   mensagem += " Interno: " + String(temperature1) + "°C | " + String(humidity1) + "%\n";
-  mensagem += " Externo: " + String(temperature2) + "°C | " + String(humidity2) + "%\n";
-  mensagem += " Temp. Água: " + String(temperatureWater) + "°C\n";
-  mensagem += " TDS: " + String(tdsValue) + " ppm\n";
-  mensagem += " Condutividade: " + String(conductivity) + "ECC\n";
-  mensagem += " pH: " + String(ph, 2) + "\n";
+  mensagem += " Externo: " + String(temperature2) + "°C | " + String(humidity2) + "%\n\n";
+  mensagem += " Tanque 1:";
+  mensagem += " Temp. Água: " + String(temperatureWater1) + "°C\n";
+  mensagem += " TDS: " + String(tdsValue1) + " ppm\n";
+  mensagem += " Condutividade: " + String(conductivity1) + "ECC\n";
+  mensagem += " pH: " + String(ph1, 2) + "\n\n";
+
+  mensagem += " Tanque 2:";
+  mensagem += " Temp. Água: " + String(temperatureWater2) + "°C\n";
+  mensagem += " TDS: " + String(tdsValue2) + " ppm\n";
+  mensagem += " Condutividade: " + String(conductivity2) + "ECC\n";
+  mensagem += " pH: " + String(ph2, 2) + "\n";
 
   sendMessage(mensagem);  // Envia para o Telegram
 
