@@ -32,8 +32,8 @@ const char* ssid = "Lucas Galindo | POCO C65";       // Substitua pelo seu Wi-Fi
 const char* password = "lucras22";  // Substitua pela senha
 
 // ##############  CONFIGURAÇÃO DO TELEGRAM
-const String botToken = "7751526303:AAEjh5i6E2B0uGwTbU3TGWbjhbvcdTEvFdg";  // Substitua pelo token do seu bot
-const String chatId = "7003158288";     // Substitua pelo seu chat ID
+const String botToken = "7819770701:AAHpfYpS61lp9U9cU6z17uU1MP0-TEJvNRU";  // Substitua pelo token do seu bot
+const String chatId = "5774771081";     // Substitua pelo seu chat ID
 
 WiFiClientSecure client;
 
