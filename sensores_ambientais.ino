@@ -26,16 +26,22 @@
 #include <DallasTemperature.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
+#include <NTPClient.h>
+#include <WiFiUdp.h>
 
 // ##############  CONFIGURAÇÃO DO WIFI
-const char* ssid = "Lucas Galindo | POCO C65";       // Substitua pelo seu Wi-Fi
-const char* password = "lucras22";  // Substitua pela senha
+
+// const char* ssid = "IFCE_DISCENTES";
+// const char* password = "ifce@bvg";
+
+const char* ssid = "Lucas Galindo | POCO C65"; 
+const char* password = "lucras22";
 
 // ##############  CONFIGURAÇÃO DO TELEGRAM
 const String botToken = "7819770701:AAHpfYpS61lp9U9cU6z17uU1MP0-TEJvNRU";  // Substitua pelo token do seu bot
 const String chatId = "5774771081";     // Substitua pelo seu chat ID
 
-WiFiClientSecure client;
+WiFiClient client;
 
 // Função para enviar mensagem para o Telegram via POST
 void sendMessage(String message) {
@@ -80,10 +86,29 @@ void sendMessage(String message) {
 #define PH_SENSOR_PIN1 34 // Sensor pH1
 #define PH_SENSOR_PIN2 35 // Sensor pH2
 
+#define rele1 18
+#define rele2 19
+#define rele3 21
+
+// ##############  Configuração dos Reles
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", -3 * 3600, 60000); // UTC-3 (Brasil)
+
+// Horários para ativação dos relés (horas, minutos)
+int horarios_rele1[][2] = {{6, 0}, {12, 0}, {18, 0}}; // FIO AZUL
+int horarios_rele2[][2] = {{7, 30}, {13, 30}, {19, 30}}; //FIO VERDE
+
+// Relé 3
+unsigned long ultimaTroca = 0;
+bool estadoRele3 = false;
+
 // ##############  DHT GLOBAL
 #define DHTTYPE DHT22
 DHT dht1(DHT1PIN, DHTTYPE);
 DHT dht2(DHT2PIN, DHTTYPE);
+
+// ##############  Sensor TDS
+
 
 // ##############  TEMP AGUA GLOBAL
 OneWire oneWire1(ONE_WIRE_BUS_1);
@@ -129,15 +154,30 @@ float calcularPH(int pin) {
 
 void setup() {
   Serial.begin(115200);
+
+  // Configuração dos relés como saída
+  pinMode(rele1, OUTPUT);
+  pinMode(rele2, OUTPUT);
+  pinMode(rele3, OUTPUT);
+
+  // Desliga os relés inicialmente
+  digitalWrite(rele1, LOW);
+  digitalWrite(rele2, LOW);
+  digitalWrite(rele3, LOW);
+
+  //TDS
   pinMode(tdsPin1, INPUT);
   pinMode(tdsPin2, INPUT);
   
+  //DHT's
   dht1.begin();
   dht2.begin();
-  // Inicializando os sensores
+
+  // Inicializando os sensores D'agua
   sensor1.begin();
   sensor2.begin();
 
+  //Calibrando Ph
   m_4_7 = (4.0 - 7.0) / (calibracao_ph4 - calibracao_ph7);
   b_4_7 = 7.0 - m_4_7 * calibracao_ph7;
   m_7_10 = (7.0 - 10.0) / (calibracao_ph7 - calibracao_ph10);
@@ -151,9 +191,49 @@ void setup() {
     Serial.print(".");
   }
   Serial.println("\nWiFi conectado!");
+
+    // Inicializa o cliente NTP
+  timeClient.begin();
 }
 
 void loop() {
+
+   timeClient.update();
+
+  // Obtém o horário atual
+  int horaAtual = timeClient.getHours();
+  int minutoAtual = timeClient.getMinutes();
+
+  // Verifica os horários para ativar o Relé
+  for (int i = 0; i < 3; i++) {
+    if (horaAtual == horarios_rele1[i][0] && minutoAtual == horarios_rele1[i][1]) {
+      Serial.println("Relé 1 LIGADO");
+      digitalWrite(rele1, HIGH);
+      delay(60000);  //evitar múltiplas ativações
+      digitalWrite(rele1, LOW);
+      Serial.println("Relé 1 DESLIGADO");
+    }
+  }
+
+  for (int i = 0; i < 3; i++) {
+    if (horaAtual == horarios_rele2[i][0] && minutoAtual == horarios_rele2[i][1]) {
+      Serial.println("Relé 2 LIGADO");
+      digitalWrite(rele2, HIGH);
+      delay(60000);
+      digitalWrite(rele2, LOW);
+      Serial.println("Relé 2 DESLIGADO");
+    }
+  }
+
+  // Controle do Relé 3 (15 minutos ligado, 15 minutos desligado)
+  unsigned long tempoAtual = millis();
+  if (tempoAtual - ultimaTroca >= 900000) {  // 900000ms = 15 minutos
+    estadoRele3 = !estadoRele3;
+    digitalWrite(rele3, estadoRele3);
+    ultimaTroca = tempoAtual;
+    Serial.print("Relé 3: ");
+    Serial.println(estadoRele3 ? "LIGADO" : "DESLIGADO");
+  }
 
   // Caculando o pH
   float ph1 = calcularPH(PH_SENSOR_PIN1);
@@ -173,14 +253,13 @@ void loop() {
   // Leitura do TDS 1 e 2
   int tdsValue1 = analogRead(tdsPin1);
   int tdsValue2 = analogRead(tdsPin2);
-  float conductivity1 = tdsValue1 * 2;
-  float conductivity2 = tdsValue2 * 2;
+  float conductivity1 = (tdsValue1 * 2)/1000;
+  float conductivity2 = (tdsValue2 * 2)/1000;
 
   // Leitura da temperatura da água
     // Solicita leituras dos sensores
   sensor1.requestTemperatures();
   sensor2.requestTemperatures();
-
   // Obtendo os valores de temperatura
   float temperatureWater1 = sensor1.getTempCByIndex(0);
   float temperatureWater2 = sensor2.getTempCByIndex(0);
@@ -201,21 +280,21 @@ void loop() {
   Serial.print(temperature2);
   Serial.println(" °C");
 
-    Serial.print("-------Tanque 1-------");
+    Serial.println("-------Tanque 1-------");
 
   Serial.print("Temperatura Agua: ");
   Serial.print(temperatureWater1);
-  Serial.println(" C");
+  Serial.println(" °C");
 
   Serial.print("TDS Valor (PPM): ");
   Serial.println(tdsValue1);
-  Serial.print("Condutividade Eletrica (ECC): ");
+  Serial.print("Condutividade Eletrica (ECC | mS/cm): ");
   Serial.println(conductivity1);
 
   Serial.print(" V | pH: ");
   Serial.println(ph1, 2);
 
-    Serial.print("-------Tanque 2-------");
+    Serial.println("-------Tanque 2-------");
 
   Serial.print("Temperatura Agua: ");
   Serial.print(temperatureWater2);
@@ -223,7 +302,7 @@ void loop() {
 
   Serial.print("TDS Valor (PPM): ");
   Serial.println(tdsValue2);
-  Serial.print("Condutividade Eletrica (ECC): ");
+  Serial.print("Condutividade Eletrica (ECC | mS/cm): ");
   Serial.println(conductivity2);
 
   Serial.print(" V | pH: ");
