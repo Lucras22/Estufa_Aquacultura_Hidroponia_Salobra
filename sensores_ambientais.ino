@@ -89,6 +89,7 @@ void sendMessage(String message) {
 #define rele1 18
 #define rele2 19
 #define rele3 21
+#define rele4 25
 
 // ##############  Configuração dos Reles
 WiFiUDP ntpUDP;
@@ -97,10 +98,8 @@ NTPClient timeClient(ntpUDP, "pool.ntp.org", -3 * 3600, 60000); // UTC-3 (Brasil
 // Horários para ativação dos relés (horas, minutos)
 int horarios_rele1[][2] = {{6, 0}, {12, 0}, {18, 0}}; // FIO AZUL
 int horarios_rele2[][2] = {{7, 30}, {13, 30}, {19, 30}}; //FIO VERDE
-
-// Relé 3
-unsigned long ultimaTroca = 0;
-bool estadoRele3 = false;
+int horarios_rele3[][2] = {{7, 30}, {13, 30}, {19, 30}}; // BOMBA DO MEIO
+int horarios_rele4[][2] = {{7, 30}, {13, 30}, {19, 30}}; // BOMBA DOS PEIXES
 
 // ##############  DHT GLOBAL
 #define DHTTYPE DHT22
@@ -159,11 +158,13 @@ void setup() {
   pinMode(rele1, OUTPUT);
   pinMode(rele2, OUTPUT);
   pinMode(rele3, OUTPUT);
+  pinMode(rele4, OUTPUT);
 
   // Desliga os relés inicialmente
   digitalWrite(rele1, LOW);
   digitalWrite(rele2, LOW);
   digitalWrite(rele3, LOW);
+  digitalWrite(rele4, LOW);
 
   //TDS
   pinMode(tdsPin1, INPUT);
@@ -225,14 +226,24 @@ void loop() {
     }
   }
 
-  // Controle do Relé 3 (15 minutos ligado, 15 minutos desligado)
-  unsigned long tempoAtual = millis();
-  if (tempoAtual - ultimaTroca >= 900000) {  // 900000ms = 15 minutos
-    estadoRele3 = !estadoRele3;
-    digitalWrite(rele3, estadoRele3);
-    ultimaTroca = tempoAtual;
-    Serial.print("Relé 3: ");
-    Serial.println(estadoRele3 ? "LIGADO" : "DESLIGADO");
+  for (int i = 0; i < 3; i++) {
+    if (horaAtual == horarios_rele3[i][0] && minutoAtual == horarios_rele3[i][1]) {
+      Serial.println("Relé 3 LIGADO");
+      digitalWrite(rele3, HIGH);
+      delay(60000);
+      digitalWrite(rele3, LOW);
+      Serial.println("Relé 3 DESLIGADO");
+    }
+  }
+
+  for (int i = 0; i < 3; i++) {
+    if (horaAtual == horarios_rele4[i][0] && minutoAtual == horarios_rele4[i][1]) {
+      Serial.println("Relé 4 LIGADO");
+      digitalWrite(rele4, HIGH);
+      delay(60000);
+      digitalWrite(rele4, LOW);
+      Serial.println("Relé 4 DESLIGADO");
+    }
   }
 
   // Caculando o pH
