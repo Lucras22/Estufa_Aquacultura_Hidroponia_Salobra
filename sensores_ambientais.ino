@@ -26,16 +26,29 @@
 #include <DallasTemperature.h>
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <NTPClient.h>
-#include <WiFiUdp.h>
+
+// === RTC ===
+// #include <Wire.h>
+// #include "RTClib.h"
+// RTC_DS1307 rtc;
+
+// === NTP (COMENTADO PARA USO FUTURO CASO NECESSÁRIO) ===
+ #include <NTPClient.h>
+ #include <WiFiUdp.h>
 
 // ##############  CONFIGURAÇÃO DO WIFI
 
 // const char* ssid = "IFCE_DISCENTES";
 // const char* password = "ifce@bvg";
 
-const char* ssid = "Lucas Galindo | POCO C65"; 
-const char* password = "lucras22";
+//const char* ssid = "Lucas Galindo | POCO C65"; 
+//const char* password = "lucras22";
+
+//const char* ssid = "TP_LINK_6BDA"; 
+//const char* password = "53161086";
+
+const char* ssid = "IFCE_ESTUFAS"; 
+const char* password = "ifce@bvg20";
 
 // ##############  CONFIGURAÇÃO DO TELEGRAM
 const String botToken = "7819770701:AAHpfYpS61lp9U9cU6z17uU1MP0-TEJvNRU";  // Substitua pelo token do seu bot
@@ -88,18 +101,37 @@ void sendMessage(String message) {
 
 #define rele1 18
 #define rele2 19
-#define rele3 21
+#define rele3 23
 #define rele4 25
 
+
+// ##############  WIFI
+int tentativas = 0;
+const int maxTentativas = 10;
+
 // ##############  Configuração dos Reles
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", -3 * 3600, 60000); // UTC-3 (Brasil)
+
+  bool deveLigarRele3 = false;
+  bool rele4Ligado = false;
+  bool rele3Ligado = false;
+
+// === NTP 
+ WiFiUDP ntpUDP;
+ NTPClient timeClient(ntpUDP, "pool.ntp.org", -3 * 3600, 60000);
 
 // Horários para ativação dos relés (horas, minutos)
-int horarios_rele1[][2] = {{6, 0}, {12, 0}, {18, 0}}; // FIO AZUL
-int horarios_rele2[][2] = {{7, 30}, {13, 30}, {19, 30}}; //FIO VERDE
-int horarios_rele3[][2] = {{7, 30}, {13, 30}, {19, 30}}; // BOMBA DO MEIO
-int horarios_rele4[][2] = {{7, 30}, {13, 30}, {19, 30}}; // BOMBA DOS PEIXES
+int horarios_rele1[][2] = {{8, 0}, {12, 0}, {16, 0}}; // FIO AZUL (Peixe : Fecha) (Solução : Abre)
+int horarios_rele2[][2] = {{9, 0}, {13, 0}, {17, 0}}; //FIO VERDE (Peixe : Abre) (Solução : Fecha)
+
+// Formato: {{hora_liga, minuto_liga, hora_desliga, minuto_desliga}, ...}
+int horarios_rele3[][4] = {
+  {8, 1, 8, 14},
+  {8, 31, 8, 44},
+  {12, 1, 12, 14},
+  {12, 31, 12, 44},
+  {16, 1, 16, 14},
+  {16, 31, 16, 44}
+};
 
 // ##############  DHT GLOBAL
 #define DHTTYPE DHT22
@@ -184,7 +216,7 @@ void setup() {
   m_7_10 = (7.0 - 10.0) / (calibracao_ph7 - calibracao_ph10);
   b_7_10 = 10.0 - m_7_10 * calibracao_ph10;
 
-  // Conectar ao Wi-Fi
+   // Conectar ao Wi-Fi
   WiFi.begin(ssid, password);
   Serial.print("Conectando ao Wi-Fi");
   while (WiFi.status() != WL_CONNECTED) {
@@ -193,17 +225,32 @@ void setup() {
   }
   Serial.println("\nWiFi conectado!");
 
-    // Inicializa o cliente NTP
-  timeClient.begin();
+// === RTC INIT ===
+//  Wire.begin();
+//  if (!rtc.begin()) {         // Verifica se o RTC está conectado
+//        Serial.println("Erro: RTC não encontrado!");
+//        //while (1);
+//    }
+//    if (!rtc.isrunning()) {     // Se o RTC não estiver rodando, define a hora
+//        Serial.println("Configurando horário...");
+//        rtc.adjust(DateTime(2025, 4, 24, 8, 40, 0)); // Ano, Mês, Dia, Hora, Minuto, Segundo
+//    }
+
+  // === NTP INIT 
+   timeClient.begin();
 }
 
 void loop() {
 
-   timeClient.update();
+  // === RTC
+  // DateTime now = rtc.now();
+  // int horaAtual = now.hour();
+  // int minutoAtual = now.minute();
 
-  // Obtém o horário atual
-  int horaAtual = timeClient.getHours();
-  int minutoAtual = timeClient.getMinutes();
+  // === NTP (COMENTADO)
+   timeClient.update();
+   int horaAtual = timeClient.getHours();
+   int minutoAtual = timeClient.getMinutes();
 
   // Verifica os horários para ativar o Relé
   for (int i = 0; i < 3; i++) {
@@ -226,23 +273,52 @@ void loop() {
     }
   }
 
-  for (int i = 0; i < 3; i++) {
-    if (horaAtual == horarios_rele3[i][0] && minutoAtual == horarios_rele3[i][1]) {
-      Serial.println("Relé 3 LIGADO");
-      digitalWrite(rele3, HIGH);
-      delay(60000);
-      digitalWrite(rele3, LOW);
-      Serial.println("Relé 3 DESLIGADO");
-    }
-  }
+for (int i = 0; i < 3; i++) {
+  int horaLiga = horarios_rele3[i][0];
+  int minutoLiga = horarios_rele3[i][1];
+  int horaDesliga = horarios_rele3[i][2];
+  int minutoDesliga = horarios_rele3[i][3];
 
-  for (int i = 0; i < 3; i++) {
-    if (horaAtual == horarios_rele4[i][0] && minutoAtual == horarios_rele4[i][1]) {
-      Serial.println("Relé 4 LIGADO");
-      digitalWrite(rele4, HIGH);
-      delay(60000);
+  // Verifica se o horário atual está dentro de algum intervalo
+  if ((horaAtual > horaLiga || (horaAtual == horaLiga && minutoAtual >= minutoLiga)) &&
+      (horaAtual < horaDesliga || (horaAtual == horaDesliga && minutoAtual < minutoDesliga))) {
+    deveLigarRele3 = true;
+    break;  // Já achou um intervalo válido, não precisa continuar
+  }
+}
+
+// Liga ou desliga o relé com base na verificação
+if (deveLigarRele3 && !rele3Ligado) {
+  Serial.println("Relé 3 LIGADO");
+  digitalWrite(rele3, HIGH);
+  rele3Ligado = true;
+} else if (!deveLigarRele3 && rele3Ligado) {
+  Serial.println("Relé 3 DESLIGADO");
+  digitalWrite(rele3, LOW);
+  rele3Ligado = false;
+}
+
+  if (horaAtual == 2) {
+    // Entre 2:00 e 2:59 o relé deve ficar desligado
+    if (rele4Ligado) {
+      Serial.println("Relé 4 DESLIGADO (intervalo das 2h)");
       digitalWrite(rele4, LOW);
-      Serial.println("Relé 4 DESLIGADO");
+      rele4Ligado = false;
+    }
+  } else {
+    // Lógica de 15/15 minutos para todas as outras horas
+    if ((minutoAtual % 30) < 15) {
+      if (!rele4Ligado) {
+        Serial.println("Relé 4 LIGADO (ciclo 15min)");
+        digitalWrite(rele4, HIGH);
+        rele4Ligado = true;
+      }
+    } else {
+      if (rele4Ligado) {
+        Serial.println("Relé 4 DESLIGADO (ciclo 15min)");
+        digitalWrite(rele4, LOW);
+        rele4Ligado = false;
+      }
     }
   }
 
@@ -258,7 +334,7 @@ void loop() {
 
   if (isnan(humidity1) || isnan(temperature1) || isnan(humidity2) || isnan(temperature2)) {
     Serial.println("Falha ao ler DHT!");
-    return;
+    //return;
   }
 
   // Leitura do TDS 1 e 2
