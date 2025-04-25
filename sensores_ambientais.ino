@@ -125,12 +125,12 @@ int horarios_rele2[][2] = {{9, 0}, {13, 0}, {17, 0}}; //FIO VERDE (Peixe : Abre)
 
 // Formato: {{hora_liga, minuto_liga, hora_desliga, minuto_desliga}, ...}
 int horarios_rele3[][4] = {
-  {8, 1, 8, 14},
-  {8, 31, 8, 44},
-  {12, 1, 12, 14},
-  {12, 31, 12, 44},
-  {16, 1, 16, 14},
-  {16, 31, 16, 44}
+  {8, 1, 8, 16},
+  {8, 31, 8, 46},
+  {12, 1, 12, 16},
+  {12, 31, 12, 46},
+  {16, 1, 16, 16},
+  {16, 31, 16, 46}
 };
 
 // ##############  DHT GLOBAL
@@ -255,7 +255,7 @@ void loop() {
   // Verifica os horários para ativar o Relé
   for (int i = 0; i < 3; i++) {
     if (horaAtual == horarios_rele1[i][0] && minutoAtual == horarios_rele1[i][1]) {
-      Serial.println("Relé 1 LIGADO");
+      Serial.println("Relé 1 LIGADO: Peixes fechando | Solução abrindo");
       digitalWrite(rele1, HIGH);
       delay(60000);  //evitar múltiplas ativações
       digitalWrite(rele1, LOW);
@@ -265,7 +265,7 @@ void loop() {
 
   for (int i = 0; i < 3; i++) {
     if (horaAtual == horarios_rele2[i][0] && minutoAtual == horarios_rele2[i][1]) {
-      Serial.println("Relé 2 LIGADO");
+      Serial.println("Relé 2 LIGADO: Peixes abrindo | Solução fechando");
       digitalWrite(rele2, HIGH);
       delay(60000);
       digitalWrite(rele2, LOW);
@@ -289,27 +289,29 @@ for (int i = 0; i < 3; i++) {
 
 // Liga ou desliga o relé com base na verificação
 if (deveLigarRele3 && !rele3Ligado) {
-  Serial.println("Relé 3 LIGADO");
+  Serial.println("Relé 3 LIGADO: Solução");
   digitalWrite(rele3, HIGH);
   rele3Ligado = true;
 } else if (!deveLigarRele3 && rele3Ligado) {
-  Serial.println("Relé 3 DESLIGADO");
+  Serial.println("Relé 3 DESLIGADO: Solução");
   digitalWrite(rele3, LOW);
   rele3Ligado = false;
 }
 
-  if (horaAtual == 2) {
-    // Entre 2:00 e 2:59 o relé deve ficar desligado
-    if (rele4Ligado) {
-      Serial.println("Relé 4 DESLIGADO (intervalo das 2h)");
-      digitalWrite(rele4, LOW);
-      rele4Ligado = false;
-    }
-  } else {
-    // Lógica de 15/15 minutos para todas as outras horas
+if (horaAtual == 2) {
+  // Entre 2:00 e 2:59 o relé deve ficar desligado
+  if (rele4Ligado) {
+    Serial.println("Relé 4 DESLIGADO (intervalo das 2h)");
+    digitalWrite(rele4, LOW);
+    rele4Ligado = false;
+  }
+} else {
+  // Lógica de 15/15 minutos para todas as outras horas
+  // MAS só se o Relé 3 NÃO estiver ligado
+  if (!rele3Ligado) {
     if ((minutoAtual % 30) < 15) {
       if (!rele4Ligado) {
-        Serial.println("Relé 4 LIGADO (ciclo 15min)");
+        Serial.println("Relé 4 LIGADO (ciclo 15min agua dos peixes)");
         digitalWrite(rele4, HIGH);
         rele4Ligado = true;
       }
@@ -320,7 +322,15 @@ if (deveLigarRele3 && !rele3Ligado) {
         rele4Ligado = false;
       }
     }
+  } else {
+    // Se o Rele 3 estiver ligado, o Rele 4 deve ficar desligado
+    if (rele4Ligado) {
+      Serial.println("Relé 4 DESLIGADO (Relé 3 está ligado)");
+      digitalWrite(rele4, LOW);
+      rele4Ligado = false;
+    }
   }
+}
 
   // Caculando o pH
   float ph1 = calcularPH(PH_SENSOR_PIN1);
