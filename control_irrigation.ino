@@ -33,8 +33,11 @@
  #include <NTPClient.h>
  #include <WiFiUdp.h>
 
-const char* ssid = "IFCE_ESTUFAS"; 
-const char* password = "ifce@bvg22";
+const char* ssid = "Lucas Galindo | POCO C65"; 
+const char* password = "lucras22";
+
+//const char* ssid = "IFCE_ESTUFAS"; 
+//const char* password = "ifce@bvg22";
 
 // ##############  Configuração dos Reles
 
@@ -108,6 +111,8 @@ int horarios_rele4[][4] = {
 };
 
 void setup() {
+  Serial.begin(115200);
+
   // Configuração dos relés como saída
   pinMode(rele1, OUTPUT);
   pinMode(rele2, OUTPUT);
