@@ -200,7 +200,7 @@ for (int i = 0; i < totalHorariosRele3; i++) {
 
   // Verifica se o horário atual está dentro de algum intervalo
   if ((horaAtual > horaLiga || (horaAtual == horaLiga && minutoAtual >= minutoLiga)) &&
-      (horaAtual < horaDesliga || (horaAtual == horaDesliga && minutoAtual < minutoDesliga))) {
+      (horaAtual < horaDesliga || (horaAtual == horaDesliga && minutoAtual <= minutoDesliga))) {
     deveLigarRele3 = true;
     break;  // Já achou um intervalo válido, não precisa continuar
   }
@@ -228,7 +228,7 @@ for (int i = 0; i < totalHorariosRele4; i++) {
 
   // Verifica se o horário atual está dentro de algum intervalo
   if ((horaAtual > horaLiga4 || (horaAtual == horaLiga4 && minutoAtual >= minutoLiga4)) &&
-      (horaAtual < horaDesliga4 || (horaAtual == horaDesliga4 && minutoAtual < minutoDesliga4))) {
+      (horaAtual < horaDesliga4 || (horaAtual == horaDesliga4 && minutoAtual <= minutoDesliga4))) {
     deveLigarRele4 = true;
     break;  // Já achou um intervalo válido, não precisa continuar
   }
