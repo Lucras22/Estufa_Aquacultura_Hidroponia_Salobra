@@ -245,7 +245,7 @@ if (deveLigarRele4 && !rele4Ligado) {
   rele4Ligado = false;
 }
 
-// Esperar 5 segundos antes da próxima leitura
-  delay(5000);
+// Esperar 1 segundos antes da próxima leitura
+  delay(1000);
 
 }
