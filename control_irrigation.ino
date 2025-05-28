@@ -33,11 +33,11 @@
  #include <NTPClient.h>
  #include <WiFiUdp.h>
 
-const char* ssid = "Lucas Galindo | POCO C65"; 
-const char* password = "lucras22";
+// const char* ssid = "Lucas Galindo | POCO C65"; 
+// const char* password = "lucras22";
 
-//const char* ssid = "IFCE_ESTUFAS"; 
-//const char* password = "ifce@bvg22";
+const char* ssid = "IFCE_ESTUFAS"; 
+const char* password = "ifce@bvg22";
 
 // ##############  Configuração dos Reles
 
@@ -55,14 +55,18 @@ const char* password = "lucras22";
 
 // Horários para ativação dos relés (horas, minutos)
 int horarios_rele1[][2] = {{8, 0}, {12, 0}, {16, 0}}; // FIO AZUL (Peixe : Fecha) (Solução : Abre)
-int horarios_rele2[][2] = {{9, 0}, {13, 0}, {17, 0}}; //FIO VERDE (Peixe : Abre) (Solução : Fecha)
+int horarios_rele2[][2] = {{10, 0}, {14, 0}, {17, 0}}; //FIO VERDE (Peixe : Abre) (Solução : Fecha)
 
 // Formato: {{hora_liga, minuto_liga, hora_desliga, minuto_desliga}, ...}
 int horarios_rele3[][4] = {
   {8, 1, 8, 16},
   {8, 31, 8, 46},
+  {9, 1, 9, 16},
+  {9, 31, 9, 46},
   {12, 1, 12, 16},
   {12, 31, 12, 46},
+  {13, 1, 13, 16},
+  {13, 31, 13, 46},
   {16, 1, 16, 16},
   {16, 31, 16, 46}
 };
@@ -82,14 +86,10 @@ int horarios_rele4[][4] = {
   {6, 31, 6, 46},
   {7, 1, 7, 16},
   {7, 31, 7, 46},
-  {9, 1, 9, 16},
-  {9, 31, 9, 46},
   {10, 1, 10, 16},
   {10, 31, 10, 46},
   {11, 1, 11, 16},
   {11, 31, 11, 46},
-  {13, 1, 13, 16},
-  {13, 31, 13, 46},
   {14, 1, 14, 16},
   {14, 31, 14, 46},
   {15, 1, 15, 16},
